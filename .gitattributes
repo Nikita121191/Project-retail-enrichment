@@ -1,0 +1,24 @@
+# Auto detect text files
+
+* text=auto
+
+# Ensure consistent line endings
+
+*.py text eol=lf
+*.ipynb text
+*.md text
+
+# Binary files
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+
+# Data files
+
+*.csv text
+
+# Jupyter notebooks (better diffs)
+
+*.ipynb diff=ipynb

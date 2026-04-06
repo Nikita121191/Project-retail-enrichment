@@ -1,0 +1,78 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# Virtual environments
+# =========================
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# IDE / Editors
+# =========================
+.idea/
+.vscode/
+
+# =========================
+# Testing / caches
+# =========================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Build / packaging
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Streamlit
+# =========================
+.streamlit/secrets.toml
+
+# =========================
+# Artifacts (ignore heavy model files)
+# =========================
+artifacts/
+artifacts/**/*.joblib
+artifacts/**/*.pkl
+artifacts/**/*.bin
+artifacts/**/*.onnx
+artifacts/**/candidates/
+
+# Optional: ignore generated prediction exports
+# artifacts/**/predictions*.csv
+
+# =========================
+# Keep project assets tracked
+# =========================
+# data/
+# images/
+# tableau/
