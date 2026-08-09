@@ -37,11 +37,14 @@ def audit_missing(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv_path", type=str, required=True)
-    parser.add_argument("--out_dir", type=str, required=True)
-    args, _ = parser.parse_known_args()
+    parser.add_argument("--csv_path", type=Path, required=True)
+    parser.add_argument("--out_dir", type=Path, required=True)
+    args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
+    if not args.csv_path.is_file():
+        parser.error(f"CSV file not found: {args.csv_path}")
+
+    out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df_raw = pd.read_csv(args.csv_path)

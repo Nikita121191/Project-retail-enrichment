@@ -8,19 +8,14 @@ from _common import harmonize_schema, save_csv
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        default="/kaggle/input/datasets/nikitasadovoy/russian-retail/russian_retail.csv",
-    )
-    parser.add_argument(
-        "--out_dir",
-        type=str,
-        default="/kaggle/working/preprocessing_audit",
-    )
-    args, _ = parser.parse_known_args()
+    parser.add_argument("--csv_path", type=Path, required=True)
+    parser.add_argument("--out_dir", type=Path, required=True)
+    args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
+    if not args.csv_path.is_file():
+        parser.error(f"CSV file not found: {args.csv_path}")
+
+    out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = harmonize_schema(pd.read_csv(args.csv_path))
@@ -52,23 +47,48 @@ def main():
     distribution_buckets = pd.DataFrame([
         {
             "bucket": "0_1000",
-            "count": int(((known["total_rented_area_num"] >= 0) & (known["total_rented_area_num"] <= 1000)).sum()),
+            "count": int(
+                (
+                    (known["total_rented_area_num"] >= 0)
+                    & (known["total_rented_area_num"] <= 1000)
+                ).sum()
+            ),
         },
         {
-            "bucket": "1001_5000",
-            "count": int(((known["total_rented_area_num"] >= 1001) & (known["total_rented_area_num"] <= 5000)).sum()),
+            "bucket": "1000_5000",
+            "count": int(
+                (
+                    (known["total_rented_area_num"] > 1000)
+                    & (known["total_rented_area_num"] <= 5000)
+                ).sum()
+            ),
         },
         {
-            "bucket": "5001_10000",
-            "count": int(((known["total_rented_area_num"] >= 5001) & (known["total_rented_area_num"] <= 10000)).sum()),
+            "bucket": "5000_10000",
+            "count": int(
+                (
+                    (known["total_rented_area_num"] > 5000)
+                    & (known["total_rented_area_num"] <= 10000)
+                ).sum()
+            ),
         },
         {
-            "bucket": "10001_50000",
-            "count": int(((known["total_rented_area_num"] >= 10001) & (known["total_rented_area_num"] <= 50000)).sum()),
+            "bucket": "10000_50000",
+            "count": int(
+                (
+                    (known["total_rented_area_num"] > 10000)
+                    & (known["total_rented_area_num"] <= 50000)
+                ).sum()
+            ),
         },
         {
-            "bucket": "50001_100000",
-            "count": int(((known["total_rented_area_num"] >= 50001) & (known["total_rented_area_num"] <= 100000)).sum()),
+            "bucket": "50000_100000",
+            "count": int(
+                (
+                    (known["total_rented_area_num"] > 50000)
+                    & (known["total_rented_area_num"] <= 100000)
+                ).sum()
+            ),
         },
         {
             "bucket": "100000_plus",

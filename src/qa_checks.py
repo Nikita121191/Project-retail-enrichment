@@ -14,6 +14,10 @@ from preprocessing import (
 )
 
 
+MIN_FOUNDED_YEAR = 1850
+MAX_FOUNDED_YEAR = 2025
+
+
 REQUIRED_COLUMNS = [
     "name",
     "description",
@@ -159,8 +163,8 @@ def build_anomaly_report(df: pd.DataFrame) -> Dict:
 
     if "founded" in df.columns:
         founded = pd.to_numeric(df["founded"], errors="coerce")
-        report["founded_lt_1850"] = int((founded < 1850).sum())
-        report["founded_gt_2026"] = int((founded > 2026).sum())
+        report["founded_lt_1850"] = int((founded < MIN_FOUNDED_YEAR).sum())
+        report["founded_gt_2025"] = int((founded > MAX_FOUNDED_YEAR).sum())
         report["founded_missing"] = int(founded.isna().sum())
 
     if "presence_world" in df.columns:
@@ -337,7 +341,7 @@ def build_training_readiness_report(df: pd.DataFrame) -> Dict:
 
     if "founded" in df.columns:
         founded = pd.to_numeric(df["founded"], errors="coerce")
-        valid = founded.between(1850, 2025)
+        valid = founded.between(MIN_FOUNDED_YEAR, MAX_FOUNDED_YEAR)
         report["founded_task"] = {
             "rows_non_null_target": int(founded.notna().sum()),
             "rows_in_valid_range_1850_2025": int(valid.sum()),
@@ -360,19 +364,14 @@ def save_dataframe(df: pd.DataFrame, path: Path) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="QA checks for retail enrichment project.")
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        default="/kaggle/input/datasets/nikitasadovoy/russian-retail/russian_retail.csv",
-    )
-    parser.add_argument(
-        "--out_dir",
-        type=str,
-        default="/kaggle/working/artifacts/qa",
-    )
-    args, _ = parser.parse_known_args()
+    parser.add_argument("--csv_path", type=Path, required=True)
+    parser.add_argument("--out_dir", type=Path, required=True)
+    args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
+    if not args.csv_path.is_file():
+        parser.error(f"CSV file not found: {args.csv_path}")
+
+    out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("Loading dataset...")

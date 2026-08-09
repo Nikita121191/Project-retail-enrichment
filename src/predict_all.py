@@ -150,7 +150,7 @@ def get_price_probabilities(fitted_model, X) -> np.ndarray:
     preds = fitted_model.predict(X)
     return np.asarray(preds, dtype=float)
 
-def run_pipeline(df_raw: pd.DataFrame, artifacts_dir="C:/Users/Никита/Documents/GitHub/NikitaSadovoy/artifacts") -> pd.DataFrame:
+def run_pipeline(df_raw: pd.DataFrame, artifacts_dir: str | Path) -> pd.DataFrame:
     artifacts_dir = Path(artifacts_dir)
 
     df = prepare_features(df_raw)
@@ -256,25 +256,19 @@ def multilabel_rows_to_strings(y_bin: np.ndarray, labels: list) -> list:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        default="C:/Users/Никита/Desktop/project/russian_retail.csv",
-    )
-    parser.add_argument(
-        "--artifacts_dir",
-        type=str,
-        default="C:/Users/Никита/Desktop/project/artifacts",
-    )
-    parser.add_argument(
-        "--out_path",
-        type=str,
-        default="C:/Users/Никита/Desktop/project/artifacts/predictions_all.csv",
-    )
-    args, _ = parser.parse_known_args()
+    parser.add_argument("--csv_path", type=Path, required=True)
+    parser.add_argument("--artifacts_dir", type=Path, required=True)
+    parser.add_argument("--out_path", type=Path, required=True)
+    args = parser.parse_args()
 
-    artifacts_dir = Path(args.artifacts_dir)
-    out_path = Path(args.out_path)
+    if not args.csv_path.is_file():
+        parser.error(f"CSV file not found: {args.csv_path}")
+
+    if not args.artifacts_dir.is_dir():
+        parser.error(f"Artifacts directory not found: {args.artifacts_dir}")
+
+    artifacts_dir = args.artifacts_dir
+    out_path = args.out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("Loading raw data...")

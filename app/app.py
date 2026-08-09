@@ -11,7 +11,8 @@ import streamlit as st
 # -----------------------------
 # Paths
 # -----------------------------
-ROOT_DIR = Path("C:/Users/Никита/Documents/GitHub/NikitaSadovoy")
+ROOT_DIR = Path(__file__).resolve().parents[1]
+
 SRC_DIR = ROOT_DIR / "src"
 ARTIFACTS_DIR = ROOT_DIR / "artifacts"
 DATA_DIR = ROOT_DIR / "data"

@@ -344,24 +344,18 @@ def save_artifacts(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        default="/kaggle/input/datasets/nikitasadovoy/russian-retail/russian_retail.csv",
-    )
-    parser.add_argument(
-        "--out_dir",
-        type=str,
-        default="/kaggle/working/artifacts/domain",
-    )
-    parser.add_argument(
-        "--test_size",
-        type=float,
-        default=0.2,
-    )
-    args, _ = parser.parse_known_args()
+    parser.add_argument("--csv_path", type=Path, required=True)
+    parser.add_argument("--out_dir", type=Path, required=True)
+    parser.add_argument("--test_size", type=float, default=0.2)
+    args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
+    if not args.csv_path.is_file():
+        parser.error(f"CSV file not found: {args.csv_path}")
+
+    if not 0.0 < args.test_size < 1.0:
+        parser.error("--test_size must be between 0 and 1.")
+
+    out_dir = args.out_dir
     df = load_and_prepare_data(args.csv_path)
 
     X = df[FEATURE_COLUMNS].copy()

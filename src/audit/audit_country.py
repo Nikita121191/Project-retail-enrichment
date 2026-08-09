@@ -8,19 +8,14 @@ from _common import harmonize_schema, normalize_country_for_audit, save_csv
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        default="/kaggle/input/datasets/nikitasadovoy/russian-retail/russian_retail.csv",
-    )
-    parser.add_argument(
-        "--out_dir",
-        type=str,
-        default="/kaggle/working/preprocessing_audit",
-    )
-    args, _ = parser.parse_known_args()
+    parser.add_argument("--csv_path", type=Path, required=True)
+    parser.add_argument("--out_dir", type=Path, required=True)
+    args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
+    if not args.csv_path.is_file():
+        parser.error(f"CSV file not found: {args.csv_path}")
+
+    out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = harmonize_schema(pd.read_csv(args.csv_path))

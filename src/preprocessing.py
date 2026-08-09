@@ -120,7 +120,7 @@ def normalize_name(s: object) -> str:
     - удаление повторяющихся токенов
     """
     s = _normalize_text(s)
-    s = re.sub(r"[^a-zа-я0-9 ]", " ", s)
+    s = re.sub(r"[^a-zа-яё0-9 ]", " ", s)
     s = re.sub(LEGAL_FORMS_PATTERN, " ", s)
     s = re.sub(r"\s+", " ", s).strip()
 

@@ -41,7 +41,7 @@ def normalize_basic_text(s: object) -> str:
 
 def normalize_name_for_audit(s: object) -> str:
     s = normalize_basic_text(s)
-    s = re.sub(r"[^a-zа-я0-9 ]", " ", s)
+    s = re.sub(r"[^a-zа-яё0-9 ]", " ", s)
     s = re.sub(r"\b(?:ооо|зао|ип|оао|ooo|zao)\b", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
 
