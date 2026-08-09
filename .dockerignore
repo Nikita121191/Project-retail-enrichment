@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Local environment and secrets
+.env
+.venv
+venv
+env
+
+# Python cache
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# IDE
+.vscode
+.idea
+
+# Runtime-generated Airflow files
+logs
+
+# Generated ML artifacts
+artifacts
+
+# Development and presentation materials
+notebooks
+images
+tableau
+
+# Local datasets: connect separately, do not bake into image
+data
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker development files not needed inside the image
+compose.yml
