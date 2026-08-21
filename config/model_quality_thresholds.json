@@ -1,0 +1,26 @@
+{
+  "policy_version": "model_quality_v1",
+  "domain": {
+    "min_cv_macro_f1": 0.45,
+    "min_holdout_macro_f1": 0.45,
+    "min_cv_uplift_over_baseline": 0.3,
+    "max_cv_std_macro_f1": 0.05,
+    "min_generalization_gap_macro_f1": -0.08
+  },
+  "founded": {
+    "min_cv_mae_improvement_over_baseline_pct": 0.1,
+    "max_holdout_mae": 10.5,
+    "min_holdout_r2": 0.2,
+    "max_holdout_p90_absolute_error": 25.0,
+    "max_generalization_gap_mae": 2.0
+  },
+  "price_category": {
+    "min_cv_macro_f1": 0.35,
+    "min_cv_uplift_over_baseline": 0.15,
+    "min_holdout_serving_macro_f1": 0.35,
+    "min_holdout_serving_micro_f1": 0.65,
+    "min_holdout_serving_samples_f1": 0.65,
+    "min_generalization_gap_macro_f1": -0.07,
+    "max_serving_macro_drop_vs_direct": 0.02
+  }
+}
