@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -14,7 +15,18 @@ import streamlit as st
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 SRC_DIR = ROOT_DIR / "src"
-ARTIFACTS_DIR = ROOT_DIR / "artifacts"
+DEFAULT_MODEL_BUNDLE_DIR = (
+    ROOT_DIR
+    / "artifacts"
+    / "current"
+)
+
+MODEL_BUNDLE_DIR = Path(
+    os.getenv(
+        "MODEL_BUNDLE_DIR",
+        str(DEFAULT_MODEL_BUNDLE_DIR),
+    )
+)
 DATA_DIR = ROOT_DIR / "data"
 
 if str(SRC_DIR) not in sys.path:
@@ -41,8 +53,40 @@ except Exception as e:
     IMPORT_ERROR = e
 else:
     IMPORT_ERROR = None
+try:
+    from serving_contract import (
+        ServingContractError,
+        validate_published_bundle,
+    )
+except Exception as e:
+    SERVING_IMPORT_ERROR = e
+else:
+    SERVING_IMPORT_ERROR = None
+if SERVING_IMPORT_ERROR is not None:
+    st.error(
+        "Не удалось загрузить serving contract."
+    )
+    st.code(
+        str(SERVING_IMPORT_ERROR)
+    )
+    st.stop()
 
 
+try:
+    BUNDLE_MANIFEST = (
+        validate_published_bundle(
+            MODEL_BUNDLE_DIR
+        )
+    )
+except ServingContractError as error:
+    st.error(
+        "Опубликованный model bundle "
+        "недоступен для serving."
+    )
+    st.code(
+        str(error)
+    )
+    st.stop()
 # -----------------------------
 # Helpers
 # -----------------------------
@@ -113,7 +157,7 @@ def run_prediction(df_input: pd.DataFrame) -> pd.DataFrame:
             f"Детали: {IMPORT_ERROR}"
         )
 
-    result = run_pipeline(df_input.copy(), artifacts_dir=ARTIFACTS_DIR)
+    result = run_pipeline(df_input.copy(), artifacts_dir=MODEL_BUNDLE_DIR)
 
     if not isinstance(result, pd.DataFrame):
         raise RuntimeError("run_pipeline должен возвращать pandas DataFrame.")
@@ -142,7 +186,9 @@ with st.sidebar:
     st.header("ℹ️ Информация")
     st.write(f"**Корень проекта:** `{ROOT_DIR}`")
     st.write(f"**Папка исходного кода:** `{SRC_DIR}`")
-    st.write(f"**Папка артефактов:** `{ARTIFACTS_DIR}`")
+    st.write(f"**Model bundle:** `{MODEL_BUNDLE_DIR}`")
+    st.write("**Serving status:** ✅ READY")
+    st.write(f"**Source run:** "f"`{BUNDLE_MANIFEST['source_run_id']}`")
 
     st.markdown("---")
     st.subheader("Ожидаемые входные поля")

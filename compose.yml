@@ -103,6 +103,33 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/streamlit/Dockerfile
 
+    ports:
+      - "8501:8501"
+
+    environment:
+      MODEL_BUNDLE_DIR: /app/artifacts/current
+
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+    
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read()"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    restart: unless-stopped
 volumes:
   postgres-db-volume:
