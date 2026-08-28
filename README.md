@@ -1,319 +1,619 @@
 ![Demo](images/demo.gif)
 
-👉 Upload CSV → Get enriched business data with ML predictions
+# Russian Retail Enrichment
 
-# 🛍️ Russian Retail Enrichment  
-**ML-система для восстановления и анализа данных о ритейл-брендах**
+**End-to-end ML system for retail data enrichment**
+**End-to-end ML-система для обогащения неполных данных о ритейл-брендах**
+
+> **English summary:** the project trains, validates, promotes, and serves three independent ML models for retail data enrichment. Apache Airflow orchestrates the training workflow, Docker Compose runs the infrastructure, PostgreSQL stores Airflow metadata, and Streamlit serves only an approved read-only model bundle.
+
+Проект восстанавливает три бизнес-атрибута:
+
+- `domain` — категория бизнеса;
+- `founded` — оценка года основания;
+- `price_category` — один или несколько ценовых сегментов.
+
+В проекте одновременно представлены три типа ML-задач:
+
+- **multiclass classification**;
+- **regression**;
+- **multilabel classification**.
 
 ---
 
-## 📌 Обзор проекта
+## 📌 О проекте
 
-Проект представляет собой **end-to-end систему машинного обучения**, которая позволяет:
+Реальные данные о компаниях часто неполные, неоднородные и содержат пропуски. Это снижает их ценность для аналитики, сегментации, отчетности и последующего моделирования.
 
-- загружать неполные данные о бизнесе
-- автоматически восстанавливать ключевые атрибуты
-- анализировать результат через интерфейс
+В этом проекте реализован полный ML workflow:
 
-Включает:
+1. аудит исходных данных;
+2. QA-проверки готовности данных к обучению;
+3. обучение трех независимых моделей;
+4. выбор моделей по cross-validation на development-части данных;
+5. финальная оценка на нетронутом holdout;
+6. валидация артефактов;
+7. model quality gate;
+8. smoke inference в serving-сценарии;
+9. controlled publication только успешно проверенного model bundle;
+10. serving через Streamlit.
 
-- EDA (анализ данных)
-- ML-модели
-- pipeline предсказаний
-- Streamlit-приложение
+Training workflow оркестрируется через **Apache Airflow**. Инфраструктура запускается в **Docker Compose** вместе с **PostgreSQL**. Streamlit работает в отдельном serving-контейнере и получает опубликованные модели через **read-only mount**.
+
+---
+
+## 🏗️ Архитектура системы
+
+```mermaid
+flowchart TD
+    A[Retail Dataset] --> B[Data Audit]
+    A --> C[QA Checks]
+
+    B --> D[Training Quality Gate]
+    C --> D
+
+    D --> E1[Train Domain Model]
+    D --> E2[Train Founded Model]
+    D --> E3[Train Price Category Model]
+
+    E1 --> F[Validate Artifacts]
+    E2 --> F
+    E3 --> F
+
+    F --> G[Model Quality Gate]
+    G --> H[Smoke Inference]
+    H --> I[Publish Model Bundle]
+
+    I --> J[artifacts/current]
+    J --> K[Serving Contract]
+    K --> L[Streamlit Application]
+```
+
+Training и serving разделены намеренно:
+
+- **Airflow** отвечает за проверки данных, обучение, валидацию, quality gates, smoke test и публикацию;
+- **Streamlit** не берет модели напрямую из произвольной папки training run;
+- serving использует только bundle из `artifacts/current`, успешно прошедший полный pipeline;
+- опубликованные модели монтируются в Streamlit **только для чтения**.
 
 ---
 
 ## 🎯 Бизнес-задача
 
-Реальные данные о компаниях часто:
+Система предназначена для обогащения неполных retail-данных модельными оценками:
 
-- неполные
-- разрозненные
-- содержат пропуски
+- категория бизнеса;
+- год основания;
+- ценовой сегмент.
 
-Отсутствие таких полей, как:
+Предсказания следует рассматривать как **data enrichment signals**, а не как официальный справочник.
 
-- `domain` (категория бизнеса)
-- `price_category` (ценовой сегмент)
-- `founded` (год основания)
-
-сильно ограничивает аналитику.
+Особенно важно: `founded` — это приблизительная оценка модели, а не подтвержденный исторический факт.
 
 ---
 
-## 💡 Решение
+## 🧠 ML-задачи и результаты
 
-Система решает задачу:
+| Задача | Тип | Выбранная модель | Финальный holdout |
+|---|---|---|---:|
+| `domain` | Multiclass classification | Random Forest | Macro F1 ≈ **0.532** |
+| `founded` | Regression | Ridge Regression | MAE ≈ **8.89 лет** |
+| `price_category` | Multilabel classification | Logistic Regression | Macro F1 ≈ **0.436** |
 
-> **восстановления недостающих характеристик бизнеса на основе имеющихся данных**
+Дополнительные holdout-метрики для `price_category`:
 
----
+- Micro F1 ≈ **0.701**;
+- Samples F1 ≈ **0.740**.
 
-## ⚙️ Что делает система
+### Domain
 
-На вход подаётся CSV → система:
+`domain` решается как многоклассовая классификация. Финальным победителем по development CV стал **Random Forest**.
 
-- предсказывает `domain`
-- оценивает `founded`
-- предсказывает `price_category`
+### Founded
 
----
+`founded` решается как регрессия. Финальная модель — **Ridge Regression**. Во время evaluation и serving предсказания ограничиваются допустимым диапазоном годов.
 
-## 🧠 ML-задачи
+### Price Category
 
-### 🔹 Domain (категория бизнеса)
-- многоклассовая классификация
-- вход: текст + признаки
-- выход: категория
+`price_category` — multilabel classification. Модель может предсказывать несколько ценовых сегментов одновременно.
 
----
+Известные target labels:
 
-### 🔹 Price Category
-- multilabel классификация
-- выход: ценовой сегмент
+- `дисконт`;
+- `ниже среднего`;
+- `средний`;
+- `выше среднего`;
+- `люкс / премиум`.
 
----
-
-### 🔹 Founded
-- регрессия
-- выход: предполагаемый год основания
-
-⚠️ Важно:  
-`founded` — это **приблизительная оценка**, а не точное историческое значение.
+Значение `неизвестно` не обучается как отдельный класс: строки, содержащие только неизвестную цену, трактуются как отсутствие target-информации.
 
 ---
 
-## 🖥️ Streamlit-приложение
+## 🔬 Training / Evaluation Strategy
 
-Приложение позволяет:
+Все три модели используют единый **training/serving feature contract**.
 
-- загрузить CSV
-- запустить pipeline
-- посмотреть предсказания
-- увидеть аналитику
-- скачать результат
+Target-поля запрещены как predictors:
+
+- `domain`;
+- `founded`;
+- `price_category`.
+
+Также из общего serving contract исключены поля, которые могут быть недоступны при реальном inference, например `total_rented_area`.
+
+Это защищает pipeline от:
+
+- **target leakage**;
+- **cascading target leakage**;
+- **train-serving skew**.
+
+### Validation protocol
+
+Для model selection используется только development-часть данных и cross-validation. Финальный holdout не участвует в выборе модели.
+
+Для `price_category` используется отдельный порядок:
+
+1. winner выбирается по development CV Macro F1;
+2. thresholds оптимизируются по out-of-fold probabilities на development data;
+3. только после model + threshold selection выполняется финальная оценка на untouched holdout.
+
+Таким образом, holdout остается независимой оценкой generalization quality.
 
 ---
 
-## 📊 Пример результата
+## 🌬️ Airflow Training Pipeline
 
-Система добавляет:
+Главный DAG:
 
-- `pred_domain`
-- `estimated_founded`
-- `pred_price_category`
+```text
+dags/retail_training_pipeline.py
+```
+
+Workflow:
+
+```text
+check_input
+  ├── run_all_audits
+  └── run_qa_checks
+          \ /
+       quality_gate
+           |
+    ┌──────┼────────┐
+    |      |        |
+ domain  founded   price
+    |      |        |
+    └──────┼────────┘
+           |
+ validate_artifacts
+           |
+ model_quality_gate
+           |
+ smoke_inference
+           |
+ publish_models
+```
+
+Ключевые этапы:
+
+- `check_input` — проверяет наличие обязательных скриптов, конфигурации и dataset;
+- `run_all_audits` — выполняет аудит схемы и качества данных;
+- `run_qa_checks` — проверяет training readiness;
+- `quality_gate` — не допускает обучение при критических проблемах данных;
+- `train_domain`, `train_founded`, `train_price_category` — обучают три независимые задачи;
+- `validate_artifacts` — проверяет файлы моделей, metadata, feature contract и совместимость артефактов;
+- `model_quality_gate` — применяет пороговые требования к качеству моделей;
+- `smoke_inference` — выполняет representative inference на входе без target-колонок;
+- `publish_models` — публикует bundle только после успешного прохождения всех предыдущих этапов.
 
 ---
 
-## 📈 Визуализация
+## ✅ Model Validation & Promotion
 
-В приложении доступны:
+Модели не используются для serving сразу после `fit()`.
 
-- распределение категорий
-- распределение ценовых сегментов
-- summary метрики
+Перед публикацией bundle проходит:
+
+```text
+artifact validation
+        ↓
+model quality gate
+        ↓
+smoke inference
+        ↓
+publication
+```
+
+Только после этого модельный набор появляется в:
+
+```text
+artifacts/current/
+```
+
+В published bundle входят модели трех задач, serving metadata, evidence от проверок и `manifest.json`.
+
+Manifest фиксирует, в частности:
+
+- source Airflow run;
+- timestamp публикации;
+- dataset SHA-256;
+- feature-contract version;
+- quality-policy version;
+- winner для каждой ML-задачи;
+- статусы обязательных validation stages.
+
+Публикация выполняется через staging directory перед заменой `artifacts/current`, что снижает риск показать serving-приложению частично скопированный набор моделей.
 
 ---
 
-## 📊 Примеры визуализации
+## 🔒 Serving Contract
 
-### Дашборд (Tableau)
+Перед inference Streamlit проверяет опубликованный bundle через:
+
+```text
+src/serving_contract.py
+```
+
+Проверяется, что:
+
+- bundle существует;
+- `manifest.json` корректен;
+- version manifest соответствует ожидаемой;
+- feature-contract version совместима;
+- model quality gate имеет статус `PASSED`;
+- smoke inference имеет статус `PASSED`;
+- присутствуют все три model entries;
+- обязательные serving-файлы существуют и не пусты.
+
+Если contract не выполнен, приложение **fails closed** — inference не запускается на непроверенных моделях.
+
+---
+
+## 🖥️ Streamlit Application
+
+Приложение поддерживает:
+
+- загрузку CSV;
+- batch inference;
+- просмотр обогащенного dataset;
+- summary statistics;
+- metadata текущего model bundle;
+- встроенный пример serving input;
+- скачивание результата.
+
+Streamlit работает в отдельном Docker image и читает модели из:
+
+```text
+/app/artifacts/current
+```
+
+Host-папка `artifacts/` подключается в serving container как **read-only**.
+
+Docker Compose также содержит healthcheck для Streamlit.
+
+### Пример serving input
+
+В репозитории есть небольшой синтетический пример:
+
+```text
+app/sample_input.csv
+```
+
+Он содержит только raw serving fields и намеренно не включает target-колонки.
+
+Основные входные поля:
+
+```text
+name
+country_origin
+description
+presence_world
+presence_russia
+presence_regions
+plans
+```
+
+Выход включает:
+
+```text
+pred_domain
+estimated_founded
+pred_price_category
+```
+
+---
+
+## 🐳 Docker Compose
+
+В одном Compose stack запускаются:
+
+```text
+PostgreSQL
+Airflow API Server
+Airflow Scheduler
+Airflow DAG Processor
+Airflow Triggerer
+Airflow Init
+Streamlit
+```
+
+`airflow-init` — one-shot container: выполняет миграцию metadata DB и после успешного завершения имеет статус `Exited (0)`.
+
+Training image и Streamlit image разделены, чтобы serving не тянул лишние orchestration dependencies и не зависел от runtime Airflow.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Требования
+
+Нужны:
+
+- Git;
+- Docker Desktop / Docker Engine с Docker Compose;
+- исходный dataset для полного training workflow.
+
+### 2. Clone
+
+```bash
+git clone https://github.com/Nikita121191/Project-retail-enrichment.git
+cd Project-retail-enrichment
+```
+
+### 3. Environment variables
+
+Создайте локальный `.env` из примера:
+
+```bash
+cp .env.example .env
+```
+
+`.env.example` содержит только placeholders. Для реального запуска замените их случайными секретами.
+
+Сгенерировать значение можно, например, так:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+Для двух переменных используйте разные значения.
+
+Настоящий `.env` не должен попадать в Git.
+
+### 4. Training dataset
+
+Для полного training workflow поместите исходный файл в ожидаемое место:
+
+```text
+data/russian_retail.csv
+```
+
+Dataset намеренно не хранится в Git вместе с generated model artifacts.
+
+### 5. Запуск stack
+
+```bash
+docker compose up -d --build
+```
+
+Проверка:
+
+```bash
+docker compose ps -a
+```
+
+После старта:
+
+- Airflow UI: `http://localhost:8082`
+- Streamlit: `http://localhost:8501`
+
+### 6. Первый запуск моделей
+
+На чистом clone папка `artifacts/current` еще отсутствует. Это ожидаемое поведение.
+
+До первой успешной публикации Streamlit запустится, но serving contract не позволит выполнять inference без approved model bundle.
+
+В Airflow запустите DAG:
+
+```text
+retail_training_pipeline
+```
+
+После успешного прохождения pipeline будет создан опубликованный bundle:
+
+```text
+artifacts/current/
+```
+
+После этого Streamlit становится serving-ready.
+
+### 7. Проверка health
+
+PostgreSQL:
+
+```bash
+docker compose exec postgres pg_isready -U airflow -d airflow
+```
+
+Streamlit:
+
+```bash
+docker compose exec streamlit python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read().decode())"
+```
+
+Ожидаемый ответ Streamlit:
+
+```text
+ok
+```
+
+---
+
+## 📊 Визуализации
+
+### Tableau Dashboard
 
 ![Dashboard](images/tableau_dashboard.png)
 
----
-
-### Распределение категорий
+### Domain Models
 
 ![Domain](images/domain_models.png)
 
----
-
-### Распределение ценовых сегментов
+### Price Category Models
 
 ![Price](images/price_models.png)
 
----
-
-### Модели
+### Founded Models
 
 ![Founded](images/founded_models.png)
 
 ---
 
-## 📈 Поведение модели
+## 📁 Структура проекта
 
-### ✔ Хорошо работает:
-- классификация `domain`
-- предсказание `price_category`
+```text
+Project-retail-enrichment/
+│
+├── app/
+│   ├── app.py
+│   └── sample_input.csv
+│
+├── config/
+│   └── model_quality_thresholds.json
+│
+├── dags/
+│   └── retail_training_pipeline.py
+│
+├── docker/
+│   └── streamlit/
+│       └── Dockerfile
+│
+├── src/
+│   ├── audit/
+│   ├── model_contract.py
+│   ├── model_quality_gate.py
+│   ├── predict_all.py
+│   ├── preprocessing.py
+│   ├── publish_models.py
+│   ├── qa_checks.py
+│   ├── run_all_audits.py
+│   ├── serving_contract.py
+│   ├── smoke_inference.py
+│   ├── train_domain.py
+│   ├── train_founded.py
+│   ├── train_price_category.py
+│   └── validate_artifacts.py
+│
+├── data/                    # local training data, not committed
+├── artifacts/               # generated model artifacts, not committed
+├── notebooks/
+├── images/
+├── tableau/
+│
+├── Dockerfile               # Airflow/training image
+├── compose.yml
+├── requirements.txt
+├── requirements-serving.txt
+├── .env.example
+└── README.md
+```
 
 ---
 
-### ⚠ Ограничения:
-- `founded` — приблизительная оценка
-- перекос в сторону "среднего" сегмента
-- зависимость от retail-домена
+## 🛠️ Tech Stack
+
+**Data / ML**
+
+- Python
+- pandas
+- NumPy
+- scikit-learn
+- XGBoost
+
+**ML Engineering / Orchestration**
+
+- Apache Airflow
+- Docker
+- Docker Compose
+- PostgreSQL
+- joblib
+
+**Serving / Analytics**
+
+- Streamlit
+- Matplotlib
+- Tableau
+
+**Engineering practices**
+
+- explicit training/serving feature contract;
+- cross-validation + untouched holdout;
+- out-of-fold threshold optimization;
+- dataset hashing;
+- artifact validation;
+- model quality gates;
+- smoke inference;
+- controlled model publication;
+- fail-closed serving contract;
+- read-only model serving mount.
+
+---
+
+## ⚠️ Ограничения
+
+- Dataset относительно небольшой — около 2.7k записей.
+- Модели ориентированы на retail-domain и могут плохо переноситься на out-of-domain компании.
+- `founded` является приблизительной оценкой.
+- Некоторые classes представлены значительно слабее других.
+- `price_category` склонен чаще предсказывать более распространенные ценовые сегменты.
+- Проект не использует внешний production model registry.
+- Нет online feature store и model-drift monitoring.
+- Cloud deployment и CI/CD не являются частью текущей версии проекта.
+
+Эти ограничения намеренно фиксируются, чтобы отделить демонстрацию архитектуры и ML methodology от заявлений о production accuracy на больших внешних данных.
 
 ---
 
 ## 🔮 Возможные улучшения
 
-- заменить `founded` на интервалы (classification)
-- улучшить баланс классов
-- увеличить датасет (3k–10k+ брендов)
-- добавить confidence score
-
-
----
-
-## 📁 Структура проекта
-
-```
-project/
-│
-├─ src/                # ML-логика
-├─ artifacts/          # модели и предсказания
-├─ notebooks/          # анализ
-├─ data/               # данные
-├─ images/             # графики
-├─ tableau/            # дашборд
-├─ app/                # Streamlit
-├─ README.md
-└─ requirements.txt
-```
+- расширение и ребалансировка dataset;
+- confidence scores / calibrated probabilities;
+- более глубокий error analysis для редких domain classes;
+- model registry;
+- automated CI checks;
+- cloud deployment;
+- monitoring качества и data drift;
+- API serving layer при необходимости интеграции с внешними системами.
 
 ---
 
-## 🛠️ Технологии
+## 💼 Что демонстрирует проект
 
-* Python (pandas, numpy, scikit-learn)
-* XGBoost, LightGBM
-* Matplotlib, Seaborn
-* Tableau
-* Streamlit
-
----
-
-## 🚀 Как запустить
-
-```bash
-pip install -r requirements.txt
-python -m streamlit run app/app.py
-```
----
-
-## 🧪 Пример использования
-
-### Вход:
-
-```csv
-name,description,presence_world
-Brand X, сеть магазинов одежды,12
-```
-
-### Выход:
+Проект показывает не только обучение отдельных моделей, но и полный model lifecycle:
 
 ```text
-pred_domain = Одежда
-estimated_founded ≈ 2005
-pred_price_category = средний
+data quality
+    ↓
+training
+    ↓
+evaluation
+    ↓
+validation
+    ↓
+quality gate
+    ↓
+smoke inference
+    ↓
+publication
+    ↓
+serving
 ```
+
+Основной акцент — на том, чтобы training и serving были согласованы, а приложение использовало только проверенные и опубликованные артефакты.
+
 ---
 
-## 📊 Результаты на тестовых данных
+## 👤 Author
 
-Ниже приведены примеры работы модели на новых (необучающих) данных.
+**Nikita Sadovoy**
 
-### Пример 1 — классический retail кейс
-
-**Вход:**
-
-```csv
-name,description,presence_world
-Urban Style,Сеть магазинов одежды для молодежи,5
-```
-
-### Предсказание:
-
-```text
-pred_domain = Одежда
-estimated_founded ≈ 2005
-pred_price_category = средний
-```
-
-✔ Интерпретация: Модель корректно определяет категорию и ценовой сегмент для типичного fashion-бренда.
-
-### Пример 2 — премиальный сегмент
-
-**Вход:**
-
-```csv
-name,description,presence_world
-Luxury Time,Премиальные часы и аксессуары,50
-```
-
-### Предсказание:
-
-```text
-pred_domain = Одежда
-estimated_founded ≈ 1993
-pred_price_category = люкс / премиум
-```
-⚠ Интерпретация:
-Ценовой сегмент определён корректно, однако категория может смещаться из-за схожести с fashion-ритейлом.
-
-### Пример 3 — нестандартный домен
-
-**Вход:**
-
-```csv
-name,description,presence_world
-Travel Hub,Туризм и организация путешествий,10
-```
-### Предсказание:
-
-```text
-pred_domain = Чай, кофе, аксессуары
-estimated_founded ≈ 2011
-pred_price_category = средний
-```
-⚠ Интерпретация:
-Модель обучена на retail-данных, поэтому на out-of-domain кейсах возможны ошибки в классификации.
-
-## 🧠 Вывод
-- Модель хорошо работает в рамках retail-домена  
-- На нестандартных категориях возможны ошибки  
-- `price_category` предсказывается стабильнее, чем `domain`  
-- `estimated_founded` является приближённой оценкой
-
-## 🧠 Ценность проекта
-
-Проект демонстрирует:
-
-- полный ML pipeline
-- работу с реальными данными
-- интерпретацию моделей
-- создание продукта (UI + ML)
-
-## 📦 Артефакты моделей
-
-Файлы обученных моделей (`.joblib`) не включены в репозиторий из-за ограничения GitHub на размер файлов.
-При этом проект полностью воспроизводим: модели можно переобучить локально с помощью скриптов в папке `src/`.
-
-Основные шаги:
-- `python src/train_domain.py`
-- `python src/train_founded.py`
-- `python src/train_price_category.py`
-
-## 📌 Итог
-
-> Это не просто ML-модель —  
-> это полноценная система обогащения данных с интерфейсом и аналитикой.
-
-
-## 👤 Автор
-
-Nikita Sadovoy
-
----
+GitHub: [Nikita121191](https://github.com/Nikita121191)

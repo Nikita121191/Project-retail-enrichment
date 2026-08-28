@@ -1205,14 +1205,6 @@ def main() -> None:
         type=float,
         default=0.2,
     )
-    # Kept for backward compatibility with the current Airflow DAG.
-    # Threshold calibration no longer uses a dedicated validation split.
-    parser.add_argument(
-        "--validation_size",
-        type=float,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument(
         "--n_jobs",
         type=int,
@@ -1241,15 +1233,6 @@ def main() -> None:
             "a positive integer."
         )
 
-    if (
-        args.validation_size
-        is not None
-    ):
-        print(
-            "NOTE: --validation_size is deprecated "
-            "and ignored. Thresholds are calibrated "
-            "from out-of-fold development predictions."
-        )
 
     validate_feature_contract(
         FEATURE_COLUMNS

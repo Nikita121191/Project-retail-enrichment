@@ -27,7 +27,11 @@ MODEL_BUNDLE_DIR = Path(
         str(DEFAULT_MODEL_BUNDLE_DIR),
     )
 )
-DATA_DIR = ROOT_DIR / "data"
+SAMPLE_INPUT_PATH = (
+    ROOT_DIR
+    / "app"
+    / "sample_input.csv"
+)
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
@@ -184,17 +188,56 @@ st.markdown(
 
 with st.sidebar:
     st.header("ℹ️ Информация")
-    st.write(f"**Корень проекта:** `{ROOT_DIR}`")
-    st.write(f"**Папка исходного кода:** `{SRC_DIR}`")
-    st.write(f"**Model bundle:** `{MODEL_BUNDLE_DIR}`")
-    st.write("**Serving status:** ✅ READY")
-    st.write(f"**Source run:** "f"`{BUNDLE_MANIFEST['source_run_id']}`")
+
+    st.success("Serving status: READY")
+
+    st.subheader("Текущие модели")
+
+    models = BUNDLE_MANIFEST["models"]
+
+    st.write(
+        f"**Domain:** "
+        f"`{models['domain']['winner']}`"
+    )
+
+    st.write(
+        f"**Founded:** "
+        f"`{models['founded']['winner']}`"
+    )
+
+    st.write(
+        f"**Price category:** "
+        f"`{models['price_category']['winner']}`"
+    )
+
+    with st.expander(
+        "Техническая информация"
+    ):
+        st.write(
+            f"**Source run:** "
+            f"`{BUNDLE_MANIFEST['source_run_id']}`"
+        )
+
+        st.write(
+            f"**Published:** "
+            f"`{BUNDLE_MANIFEST['published_at_utc']}`"
+        )
+
+        st.write(
+            f"**Feature contract:** "
+            f"`{BUNDLE_MANIFEST['feature_contract_version']}`"
+        )
 
     st.markdown("---")
-    st.subheader("Ожидаемые входные поля")
+
+    st.subheader(
+        "Ожидаемые входные поля"
+    )
+
     st.markdown(
         """
 Наиболее полезны следующие колонки:
+
 - `name`
 - `country_origin`
 - `description`
@@ -203,13 +246,21 @@ with st.sidebar:
 - `presence_regions`
 - `plans`
 
-`domain`, `founded`, `price_category`
-могут быть пустыми — модель
-попытается их дополнить.
+`domain`, `founded` и `price_category`
+**не обязательны** во входном CSV.
+
+Приложение формирует:
+
+- `pred_domain`
+- `pred_founded`
+- `pred_price_category`
 """
     )
 
-    show_sample = st.checkbox("Показать пример локального датасета", value=False)
+    show_sample = st.checkbox(
+        "Показать пример входного CSV",
+        value=False,
+    )
 
 tab1, tab2 = st.tabs(["📤 Загрузка и предсказание", "ℹ️ О приложении"])
 
@@ -230,16 +281,15 @@ with tab1:
             st.error(str(e))
 
     if show_sample:
-        sample_path = DATA_DIR / "russian_retail.csv"
-        if sample_path.exists():
+        if SAMPLE_INPUT_PATH.is_file():
             try:
-                sample_df = load_sample_data(sample_path)
-                st.markdown("### Пример локального датасета")
-                st.dataframe(sample_df.head(15), use_container_width=True)
+                sample_df = load_sample_data(SAMPLE_INPUT_PATH)
+                st.markdown("### Пример входного CSV")
+                st.dataframe(sample_df, use_container_width=True)
             except Exception as e:
-                st.warning(f"Не удалось загрузить sample data: {e}")
+                st.warning("Не удалось загрузить "f"sample input: {e}")
         else:
-            st.info("Файл `data/russian_retail.csv` не найден.")
+            st.info("Файл `app/sample_input.csv` не найден.")
 
     if df_source is not None:
         st.markdown("## Предпросмотр входных данных")

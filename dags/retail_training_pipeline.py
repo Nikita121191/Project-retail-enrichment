@@ -53,7 +53,6 @@ CURRENT_ARTIFACTS_DIR = (
 
 SMOKE_SAMPLE_SIZE = 20
 TEST_SIZE = 0.2
-PRICE_VALIDATION_SIZE = 0.2
 TRAIN_N_JOBS = 2
 
 
@@ -570,8 +569,6 @@ def retail_training_pipeline():
             str(out_dir),
             "--test_size",
             str(TEST_SIZE),
-            "--validation_size",
-            str(PRICE_VALIDATION_SIZE),
             "--n_jobs",
             str(TRAIN_N_JOBS),
         ]
