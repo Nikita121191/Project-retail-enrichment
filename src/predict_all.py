@@ -17,6 +17,7 @@ from model_contract import (
     validate_feature_contract,
 )
 from preprocessing import prepare_features
+from input_validation import validate_inference_input
 
 
 FEATURE_COLUMNS = INFERENCE_SAFE_FEATURES.copy()
@@ -282,7 +283,7 @@ def run_pipeline(
     )
 
     df = prepare_features(
-        df_raw
+        validate_inference_input(df_raw)
     )
     X = sanitize_for_model(
         df

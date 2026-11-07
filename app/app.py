@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import math
 import os
@@ -22,6 +21,8 @@ MODEL_BUNDLE_DIR = Path(
 SAMPLE_INPUT_PATH = ROOT_DIR / "app" / "sample_input.csv"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+
+from input_validation import input_warnings, read_inference_csv
 
 RESULT_KEY = "retail_prediction_result"
 CONTEXT_KEY = "retail_prediction_context"
@@ -46,15 +47,7 @@ def missing_mask(series: pd.Series) -> pd.Series:
 
 
 def safe_read_csv(data: bytes) -> pd.DataFrame:
-    try:
-        df = pd.read_csv(io.BytesIO(data))
-    except Exception as error:
-        raise ValueError(f"Не удалось прочитать CSV: {error}") from error
-    if df.empty:
-        raise ValueError("CSV не содержит строк данных.")
-    if not df.columns.is_unique:
-        raise ValueError("Названия столбцов CSV должны быть уникальными.")
-    return df
+    return read_inference_csv(data)
 
 
 @st.cache_data
@@ -318,6 +311,8 @@ def main():
                 st.info("Файл app/sample_input.csv не найден.")
 
         if source is not None:
+            for warning in input_warnings(source):
+                st.warning(warning)
             st.markdown("## Предпросмотр входных данных")
             c1, c2 = st.columns([2, 1])
             with c1:
