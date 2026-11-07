@@ -18,6 +18,8 @@ MISSING_PRESENCE = {"неизвестно", "нет данных", "н/д"}
 
 def read_inference_csv(data: bytes) -> pd.DataFrame:
     """Reject ambiguous records before pandas can rename headers or infer an index."""
+    if b"\x00" in data:
+        raise ValueError("CSV содержит нулевой байт (NUL). Удалите его и загрузите файл заново.")
     try:
         text = data.decode("utf-8-sig")
         rows = csv.reader(io.StringIO(text, newline=""), strict=True)
@@ -27,13 +29,17 @@ def read_inference_csv(data: bytes) -> pd.DataFrame:
         if len(set(header)) != len(header):
             raise ValueError("Названия столбцов CSV должны быть уникальными.")
         for record, row in enumerate(rows, start=2):
+            if len(row) == 1 and not row[0].strip():
+                raise ValueError(f"Запись CSV {record}: пустое значение или строка из пробельных символов.")
             if len(row) != len(header):
                 raise ValueError(
                     f"Запись CSV {record}: ожидалось {len(header)} полей, "
                     f"получено {len(row)}. Проверьте запятые, кавычки и пустые строки."
                 )
         # Preserve textual identifiers (e.g. 001) and country codes such as NA.
-        df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
+        df = pd.read_csv(
+            io.StringIO(text), dtype=str, keep_default_na=False, skip_blank_lines=False,
+        )
     except (UnicodeError, csv.Error, pd.errors.ParserError) as error:
         raise ValueError(f"Не удалось прочитать CSV в UTF-8: {error}") from error
     validate_inference_input(df)
@@ -99,6 +105,13 @@ def validate_inference_input(df: pd.DataFrame) -> pd.DataFrame:
                            or bool(re.search(r"[-−]\s*\d|\d[.,]\d|\d[eE][+-]?\d", text)))
                 numbers = re.findall(r"\d+", text)
                 invalid |= len(numbers) > (2 if "франчайз" in text.lower() else 1)
+                if len(numbers) == 2:
+                    # Two counts must name an additive pair, not a range or ratio.
+                    invalid |= re.fullmatch(
+                        r"\d+\s+(?:собственных(?:\s+магазинов)?\s+)?и\s+"
+                        r"\d+\s+франчайз\w*(?:\s+магазинов)?",
+                        text, flags=re.IGNORECASE,
+                    ) is None
                 invalid |= any(not np.isfinite(float(n)) for n in numbers)
             else:
                 invalid = not np.isfinite(number) or number < 0 or not number.is_integer()

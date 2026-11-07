@@ -30,6 +30,26 @@ def test_reject_ambiguous_or_empty_csv(data, message):
         read_inference_csv(data)
 
 
+@pytest.mark.parametrize("blank", [b"   ", b"\t", b" \t "])
+def test_whitespace_record_is_rejected_with_record_number(blank):
+    with pytest.raises(ValueError, match=r"Запись CSV 3:"):
+        read_inference_csv(b"name\nA\n" + blank + b"\nB\n")
+
+
+@pytest.mark.parametrize("data", [
+    b"name,presence_world\nBrand,12\x00oops\n",
+    b"na\x00me\nBrand\n",
+    b'name,description\nBrand,"text\x00tail"\n',
+])
+def test_nul_is_rejected_before_csv_parsing(data, monkeypatch):
+    def unexpected_parse(*args, **kwargs):
+        pytest.fail("NUL input must be rejected before pandas parsing")
+
+    monkeypatch.setattr(pd, "read_csv", unexpected_parse)
+    with pytest.raises(ValueError, match="нулевой байт"):
+        read_inference_csv(data)
+
+
 @pytest.mark.parametrize("column", ["presence_world", "plans"])
 @pytest.mark.parametrize("value", ["abc", "inf", "-inf", "NaN", "-1", "1.5", "1e999"])
 def test_bad_numeric_values_are_not_silently_imputed(column, value):
@@ -41,6 +61,36 @@ def test_bad_numeric_values_are_not_silently_imputed(column, value):
 def test_reject_ambiguous_presence_counts(value):
     with pytest.raises(ValueError, match="presence_russia"):
         validate_inference_input(pd.DataFrame({"name": ["Brand"], "presence_russia": [value]}))
+
+
+@pytest.mark.parametrize("value", [
+    "10–20 франчайзинговых", "12/5 франчайзинговых",
+    "10—20 франчайзинговых", "12 / 5 франчайзинговых",
+    "от 10 до 20 франчайзинговых", "10:20 франчайзинговых",
+])
+def test_two_presence_counts_require_an_unambiguous_format(value):
+    with pytest.raises(ValueError, match="presence_russia"):
+        read_inference_csv(f"name,presence_russia\nBrand,{value}\n".encode())
+    with pytest.raises(ValueError, match="presence_russia"):
+        validate_inference_input(pd.DataFrame({"name": ["Brand"], "presence_russia": [value]}))
+
+
+@pytest.mark.parametrize("value, own, franchise", [
+    ("80 и 876 франчайзинговых", 80, 876),
+    ("82 и 20 франчайзинговых", 82, 20),
+    ("12 и 4 франчайзинговых", 12, 4),
+    ("80 собственных и 876 франчайзинговых", 80, 876),
+    ("21", 21, 0), ("21.0", 21, 0), ("1e3", 1000, 0),
+    ("0", 0, 0), ("21 магазин", 21, 0),
+    ("20 франчайзинговых", 0, 20),
+])
+def test_documented_presence_formats_keep_their_meaning(value, own, franchise):
+    from preprocessing import prepare_features
+
+    df = read_inference_csv(f"name,presence_russia\nBrand,{value}\n".encode())
+    features = prepare_features(validate_inference_input(df))
+    assert features.loc[0, "presence_own"] == own
+    assert features.loc[0, "presence_franchise"] == franchise
 
 
 def test_preserve_identifiers_country_codes_bom_and_multiline_fields():
